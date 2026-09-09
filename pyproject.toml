@@ -1,0 +1,26 @@
+[project]
+name = "demanda-servicios-salud-cdmx"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Lucas-G-A", email = "lucas.g.a@icloud.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.4.0",
+    "geopandas>=1.1.4",
+    "ipykernel>=7.3.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.1",
+    "pandas>=3.0.5",
+    "plotly>=7.0.0",
+    "streamlit>=1.63.0",
+]
+
+[project.scripts]
+demanda-servicios-salud-cdmx = "demanda_servicios_salud_cdmx:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"

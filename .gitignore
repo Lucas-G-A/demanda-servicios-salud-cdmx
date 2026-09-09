@@ -1,0 +1,33 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# --- uv / entornos virtuales ---
+.venv/
+venv/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Datos crudos (pesados, no versionar) ---
+data/raw/
+
+# --- Streamlit secrets (API keys — NUNCA subir) ---
+.streamlit/secrets.toml
+
+# --- Shapefiles y geodata pesada (por si se cuela algo fuera de data/raw) ---
+*.shp
+*.shx
+*.dbf
+*.prj
+*.zip
+
+# --- OS / editor ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- Variables de entorno ---
+.env
