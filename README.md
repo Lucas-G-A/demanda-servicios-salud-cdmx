@@ -34,6 +34,7 @@ AGEB (Área Geoestadística Básica), Marco Geoestadístico 2020 de INEGI. Se us
 - Posible doble conteo entre `hospitales`, `establecimientos_salud` (CLUES) y `centros_salud` — resuelto por merge exacto en CLUES donde existe, y dedup espacial (<100m) para `centros_salud` que no trae CLUES.
 
 ## Estructura del repo
+```
 dataton-salud/
 ├── data/
 │ ├── raw/ # no versionado
@@ -47,7 +48,7 @@ dataton-salud/
 ├── app/ # Streamlit — Mapa / Dashboard / Agente (pendiente)
 ├── pyproject.toml
 └── uv.lock
-
+```
 
 ## Cómo correr el pipeline
 
@@ -66,6 +67,78 @@ Genera `data/processed/tabla_maestra.parquet`: una fila por AGEB, con geometría
 - [ ] Validación retrospectiva
 - [ ] App Streamlit (mapa hexagonal, dashboard, agente)
 - [ ] Deploy en Streamlit Community Cloud
+
+## Validación retrospectiva — hallazgos
+
+Se probó un modelo de tendencia lineal simple (extrapolación de 3 cortes de DENUE:
+2024, 2025, 2026) para predecir el número de establecimientos de salud por zona,
+tanto a nivel AGEB como a nivel colonia.
+
+**Resultado**: el modelo no superó un baseline ingenuo de persistencia ("la zona
+se mantiene igual que el último corte conocido"):
+
+| Nivel | Accuracy modelo | Accuracy baseline (persistencia) | Precision clase "sube" |
+|---|---|---|---|
+| AGEB | ~40-57%* | 96.2% | — |
+| Colonia | 57.5% | 57.6% | 7.4% |
+
+*varía según banda de tolerancia usada para clasificar sube/baja/estable.
+
+**Conclusión**: con solo 3 momentos históricos y conteos de establecimientos
+pequeños y discretos por zona (mayoría entre 0-3), la extrapolación lineal no
+tiene poder predictivo real — no es un error de implementación, se validó en
+dos granularidades geográficas distintas con el mismo resultado.
+
+**Decisión de modelo**: el score de oportunidad final pondera `tendencia = 0`.
+El componente de proyección se apoya en variables estáticas de necesidad
+insatisfecha (`PSDSS`, marginación CONAPO) en vez de en tendencia de oferta —
+se asume que la necesidad insatisfecha actual persiste o se agrava en el
+horizonte proyectado, no que la oferta crecerá de forma extrapolable.
+
+Esto se documenta como limitación reconocida, no como fallo oculto — es
+resultado directo de la validación retrospectiva que pide el reto.
+
+**Próximo paso evaluado**: probar con más cortes históricos de DENUE (5-6 en
+vez de 3) para ver si la tendencia a nivel colonia mejora con más densidad
+temporal, con límite de tiempo definido para no bloquear el resto del proyecto.
+
+## Fixes de datos durante el desarrollo
+
+- `CVE_AGEB` del shapefile de marco geoestadístico son solo 4 dígitos (no
+  únicos a nivel ciudad) — se usó `CVEGEO` (13 caracteres, ENT+MUN+LOC+AGEB)
+  como llave real para el merge con marginación CONAPO.
+- Normalización del score cambiada de min-max a rank-percentil — el min-max
+  se veía distorsionado por outliers extremos (torres médicas con 200+
+  establecimientos en una sola dirección), comprimiendo el resto de las
+  zonas a un rango angosto y sin poder de diferenciación.
+- Identificadas concentraciones legítimas de oferta médica en una sola
+  dirección (ej. Tlacotalpan, Roma Norte — 289 establecimientos, mismo
+  número exterior, confirmado que no es error de geocodificación).
+  Marcadas con `n_en_misma_direccion` para uso futuro, no filtradas.
+
+
+## Validación retrospectiva — hallazgos (actualizado con 6 cortes)
+
+Se probó tendencia lineal con 6 cortes de DENUE (2018, 2020, 2022, 2024, 2025, 2026)
+usando validación leave-last-out (se entrena con 2018-2025, se predice 2026, se
+compara contra el valor real).
+
+| Métrica | Valor |
+|---|---|
+| Correlación de Spearman | 0.995 |
+| Accuracy modelo (sube/baja/estable) | 92.8% |
+| Accuracy baseline (persistencia) | 96.2% |
+
+**Conclusión**: incluso con el doble de historia temporal (6 cortes vs. 3), la
+tendencia lineal sigue sin superar la predicción ingenua de "la zona no cambia".
+Se confirma en 3 configuraciones distintas (AGEB/3 cortes, colonia/3 cortes,
+AGEB/6 cortes) que el problema es estructural — conteos de establecimientos por
+zona demasiado pequeños y discretos para que una tendencia temporal aporte señal
+confiable — no una limitación de cantidad de datos históricos.
+
+**Decisión final de modelo**: `w_tendencia = 0`. El score de oportunidad se basa
+en demanda insatisfecha (marginación/PSDSS) y saturación de oferta actual,
+ambas señales estáticas pero validadas y con variación real entre zonas.
 
 ## Stack
 

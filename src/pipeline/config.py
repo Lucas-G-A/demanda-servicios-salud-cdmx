@@ -11,6 +11,9 @@ SCIAN_SALUD_PREFIX = "62"
 
 # Ajusta estas rutas a tu repo
 PATHS = {
+    "denue_2018": RAW / "denue_09_03_2018_csv/conjunto_de_datos/denue_inegi_09_.csv",
+    "denue_2020": RAW / "denue_09_04_2020_csv/conjunto_de_datos/denue_inegi_09_.csv",
+    "denue_2022": RAW / "denue_09_05_2022_csv/conjunto_de_datos/denue_inegi_09_.csv",
     "denue_2024": RAW / "denue_09_05_2024_csv/conjunto_de_datos/denue_inegi_09_.csv",
     "denue_2025": RAW / "denue_09_05_2025_csv/conjunto_de_datos/denue_inegi_09_.csv",
     "denue_2026": RAW / "denue_09_05_2026_csv/conjunto_de_datos/denue_inegi_09_.csv",
@@ -21,4 +24,6 @@ PATHS = {
     "hospitales": RAW / "Hospitales en Mexico/72262636-b579-48bc-a274-85b5d89aec7f/hospitales_publicos_privados_zmvm_operacion.shp",
     "establecimientos_salud": RAW / "ESTABLECIMIENTO_SALUD_202607.xlsx",
     "equipamiento_basico": RAW / "Equipamiento Basico de Salud/Equipamiento_b sico_de_salud.shp",
+    "cartografia_colonia": RAW / "indice_marginacion-cartografia2020_shp/colonias_imc2020.shp",
+    
 }

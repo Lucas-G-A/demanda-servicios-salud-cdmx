@@ -1,0 +1,36 @@
+# src/viz/mapas.py
+import geopandas as gpd
+import matplotlib.pyplot as plt
+
+
+def plot_score_oportunidad(
+    master: gpd.GeoDataFrame,
+    columna: str = "score_oportunidad",
+    cmap: str = "RdYlGn",
+    figsize: tuple = (9, 9),
+    guardar_en: str | None = None,
+):
+    """Mapa choropleth de CDMX coloreado por la columna dada."""
+    fig, ax = plt.subplots(figsize=figsize)
+
+    master.plot(
+        column=columna,
+        cmap=cmap,
+        legend=True,
+        ax=ax,
+        edgecolor="white",
+        linewidth=0.1,
+        legend_kwds={"shrink": 0.6, "label": columna},
+    )
+    ax.set_axis_off()  # sin ejes de lat/lon, se ve más limpio
+
+    if guardar_en:
+        fig.savefig(guardar_en, dpi=150, bbox_inches="tight")
+
+    plt.show()
+    return fig, ax
+
+
+if __name__ == "__main__":
+    master = gpd.read_parquet("data/processed/tabla_maestra.parquet")
+    plot_score_oportunidad(master)

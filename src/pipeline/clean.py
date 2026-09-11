@@ -65,3 +65,7 @@ def load_establecimientos_salud() -> gpd.GeoDataFrame:
 def load_equipamiento_basico() -> gpd.GeoDataFrame:
     gdf = gpd.read_file(PATHS["equipamiento_basico"], encoding="utf-8-sig")
     return gdf.to_crs(CRS_STANDARD)
+
+def load_cartografia_colonia() -> gpd.GeoDataFrame:
+    gdf = gpd.read_file(PATHS["cartografia_colonia"])  # agrega esta ruta a config.py si no está
+    return gdf.to_crs(CRS_STANDARD)
