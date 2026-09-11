@@ -69,3 +69,58 @@ def load_equipamiento_basico() -> gpd.GeoDataFrame:
 def load_cartografia_colonia() -> gpd.GeoDataFrame:
     gdf = gpd.read_file(PATHS["cartografia_colonia"])  # agrega esta ruta a config.py si no está
     return gdf.to_crs(CRS_STANDARD)
+
+def arreglar_mojibake(serie: pd.Series) -> pd.Series:
+    """Repara texto UTF-8 guardado incorrectamente como Latin-1 en el archivo origen (ej. afluencia_metro.csv)."""
+    def fix(x):
+        if pd.isna(x):
+            return x
+        try:
+            return x.encode("latin-1").decode("utf-8")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            return x
+    return serie.apply(fix)
+
+
+def normalizar_texto(serie: pd.Series) -> pd.Series:
+    """Mayúsculas, sin acentos, sin espacios extra -- para cruzar nombres de estación entre fuentes."""
+    import unicodedata
+    import re
+
+    def limpiar(x):
+        if pd.isna(x):
+            return x
+        x = str(x).upper().strip()
+        x = unicodedata.normalize("NFKD", x).encode("ascii", "ignore").decode("utf-8")
+        x = re.sub(r"\s+", " ", x)
+        return x
+    return serie.apply(limpiar)
+
+
+# src/pipeline/clean.py — reemplaza load_estaciones_con_afluencia() completa por esto
+
+def load_estaciones_con_afluencia() -> gpd.GeoDataFrame:
+    afluencia = pd.read_csv(PATHS["afluencia_metro"], encoding="utf-8-sig")
+    afluencia["estacion"] = arreglar_mojibake(afluencia["estacion"])
+    afluencia["estacion_norm"] = normalizar_texto(afluencia["estacion"])
+    afluencia["linea_norm"] = normalizar_texto(afluencia["linea"]).str.extract(r"(\d+)")  # "Linea 1" -> "1"
+
+    afluencia_total = (
+        afluencia.groupby(["estacion_norm", "linea_norm"])["afluencia"]
+        .sum()
+        .reset_index()
+        .rename(columns={"afluencia": "afluencia_total_historica"})
+    )
+
+    estaciones = gpd.read_file(PATHS["estaciones_metro"]).to_crs(CRS_STANDARD)
+    estaciones["estacion_norm"] = normalizar_texto(estaciones["NOMBRE"])
+    estaciones["linea_norm"] = estaciones["LINEA"].astype(str).str.lstrip("0")  # "01" -> "1"
+
+    estaciones_con_afluencia = estaciones.merge(
+        afluencia_total, on=["estacion_norm", "linea_norm"], how="left"
+    )
+
+    n_sin_match = estaciones_con_afluencia["afluencia_total_historica"].isna().sum()
+    print(f"  Estaciones Metro sin match de afluencia: {n_sin_match} de {len(estaciones_con_afluencia)}")
+
+    return estaciones_con_afluencia

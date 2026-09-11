@@ -9,6 +9,8 @@ from src.pipeline.dedupe import unify_salud_supply
 from src.pipeline.spatial_join import join_puntos_a_ageb, construir_ageb_a_colonia
 from src.pipeline.config import PATHS, PROCESSED
 from src.model.trend import compute_trend_generico, compute_opportunity_score
+from src.pipeline.clean import load_estaciones_con_afluencia
+from src.pipeline.spatial_join import join_afluencia_a_ageb
 
 AÑOS_DENUE = {
     2018: "denue_2018",
@@ -51,6 +53,13 @@ def main():
         conteo = join_puntos_a_ageb(denue, ageb, col_nombre)
         master = master.merge(conteo, on="CVE_AGEB", how="left")
         cols_por_año[año] = col_nombre
+
+    print("Cargando afluencia de Metro...")
+    estaciones_con_afluencia = load_estaciones_con_afluencia()
+    conteo_metro = join_afluencia_a_ageb(estaciones_con_afluencia, ageb)
+    master = master.merge(conteo_metro, on="CVE_AGEB", how="left")
+    master["n_estaciones_metro"] = master["n_estaciones_metro"].fillna(0)
+    master["afluencia_metro_total"] = master["afluencia_metro_total"].fillna(0)
 
     print("Join espacial de oferta pública unificada...")
     conteo_publica = join_puntos_a_ageb(salud_publica, ageb, "n_salud_publica")

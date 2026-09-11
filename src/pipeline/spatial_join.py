@@ -25,3 +25,17 @@ def construir_ageb_a_colonia(ageb: gpd.GeoDataFrame, cartografia_colonia: gpd.Ge
     )
     cruce = cruce.rename(columns={"COLONIA": "colonia"})
     return cruce[["CVE_AGEB", "colonia"]]
+
+def join_afluencia_a_ageb(estaciones_con_afluencia: gpd.GeoDataFrame, ageb: gpd.GeoDataFrame) -> pd.DataFrame:
+    """Suma afluencia y cuenta estaciones de Metro por AGEB."""
+    unidos = gpd.sjoin(
+        estaciones_con_afluencia,
+        ageb[["CVE_AGEB", "geometry"]],
+        how="left",
+        predicate="within",
+    )
+    resumen = unidos.groupby("CVE_AGEB").agg(
+        n_estaciones_metro=("estacion_norm", "count"),
+        afluencia_metro_total=("afluencia_total_historica", "sum"),
+    ).reset_index()
+    return resumen

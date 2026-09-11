@@ -25,5 +25,6 @@ PATHS = {
     "establecimientos_salud": RAW / "ESTABLECIMIENTO_SALUD_202607.xlsx",
     "equipamiento_basico": RAW / "Equipamiento Basico de Salud/Equipamiento_b sico_de_salud.shp",
     "cartografia_colonia": RAW / "indice_marginacion-cartografia2020_shp/colonias_imc2020.shp",
-    
+    "afluencia_metro": RAW / "metro/afluencia_metro.csv",
+    "estaciones_metro": RAW / "metro/stcmetro_shp/STC_Metro_estaciones_utm14n.shp",
 }
