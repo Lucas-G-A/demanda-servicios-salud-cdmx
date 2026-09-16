@@ -11,6 +11,8 @@ from src.pipeline.config import PATHS, PROCESSED
 from src.model.trend import compute_trend_generico, compute_opportunity_score
 from src.pipeline.clean import load_estaciones_con_afluencia
 from src.pipeline.spatial_join import join_afluencia_a_ageb
+from src.pipeline.clean import load_indaabin_candidatos
+from src.pipeline.spatial_join import join_candidatos_a_ageb
 
 AÑOS_DENUE = {
     2018: "denue_2018",
@@ -74,9 +76,21 @@ def main():
     print("Computando score de oportunidad...")
     master = compute_opportunity_score(master)
 
+    print("Cruzando predios candidatos INDAABIN...")
+    candidatos = load_indaabin_candidatos()
+    candidatos_con_ageb = join_candidatos_a_ageb(candidatos, master)
+
+    candidatos_out_path = PROCESSED / "indaabin_candidatos.parquet"
+    candidatos_con_ageb.to_parquet(candidatos_out_path)
+    print(f"Listo: {candidatos_out_path} ({len(candidatos_con_ageb)} predios)")
+
+    agebs_con_candidato = set(candidatos_con_ageb["CVE_AGEB"].dropna())
+    master["tiene_predio_candidato"] = master["CVE_AGEB"].isin(agebs_con_candidato)
+
     out_path = PROCESSED / "tabla_maestra.parquet"
     master.to_parquet(out_path)
     print(f"Listo: {out_path} ({len(master)} filas)")
+
 
 
 if __name__ == "__main__":

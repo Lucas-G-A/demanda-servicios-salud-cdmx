@@ -39,3 +39,19 @@ def join_afluencia_a_ageb(estaciones_con_afluencia: gpd.GeoDataFrame, ageb: gpd.
         afluencia_metro_total=("afluencia_total_historica", "sum"),
     ).reset_index()
     return resumen
+
+
+def join_candidatos_a_ageb(candidatos: gpd.GeoDataFrame, ageb: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Une cada predio candidato con su AGEB (score, confianza, colonia)."""
+    candidatos_con_ageb = gpd.sjoin(
+        candidatos,
+        ageb[["CVE_AGEB", "colonia", "score_oportunidad", "confianza", "geometry"]],
+        how="left",
+        predicate="within",
+    )
+
+    n_sin_ageb = candidatos_con_ageb["CVE_AGEB"].isna().sum()
+    if n_sin_ageb > 0:
+        print(f"  Predios candidatos sin AGEB asignado: {n_sin_ageb} de {len(candidatos_con_ageb)}")
+
+    return candidatos_con_ageb

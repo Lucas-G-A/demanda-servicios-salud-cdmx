@@ -27,4 +27,5 @@ PATHS = {
     "cartografia_colonia": RAW / "indice_marginacion-cartografia2020_shp/colonias_imc2020.shp",
     "afluencia_metro": RAW / "metro/afluencia_metro.csv",
     "estaciones_metro": RAW / "metro/stcmetro_shp/STC_Metro_estaciones_utm14n.shp",
+    "indaabin_candidatos": RAW / "indaabin/cdmx_geocodificado_manual.csv",
 }

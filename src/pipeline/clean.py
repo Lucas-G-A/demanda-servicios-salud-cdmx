@@ -96,9 +96,6 @@ def normalizar_texto(serie: pd.Series) -> pd.Series:
         return x
     return serie.apply(limpiar)
 
-
-# src/pipeline/clean.py — reemplaza load_estaciones_con_afluencia() completa por esto
-
 def load_estaciones_con_afluencia() -> gpd.GeoDataFrame:
     afluencia = pd.read_csv(PATHS["afluencia_metro"], encoding="utf-8-sig")
     afluencia["estacion"] = arreglar_mojibake(afluencia["estacion"])
@@ -124,3 +121,13 @@ def load_estaciones_con_afluencia() -> gpd.GeoDataFrame:
     print(f"  Estaciones Metro sin match de afluencia: {n_sin_match} de {len(estaciones_con_afluencia)}")
 
     return estaciones_con_afluencia
+
+def load_indaabin_candidatos() -> gpd.GeoDataFrame:
+    """Predios federales candidatos (INDAABIN, geocodificados a mano)."""
+    df = pd.read_csv(PATHS["indaabin_candidatos"])
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["longitud"], df["latitud"]),
+        crs=CRS_STANDARD,
+    )
+    return gdf
