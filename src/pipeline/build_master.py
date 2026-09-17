@@ -15,6 +15,7 @@ from src.pipeline.spatial_join import join_candidatos_a_ageb
 from src.pipeline.clean import load_uso_suelo
 from src.pipeline.spatial_join import compute_factibilidad_uso_suelo
 from src.model.trend import compute_factibilidad_flag
+from src.model.trend import compute_tipo_zona
 
 AÑOS_DENUE = {
     2018: "denue_2018",
@@ -64,6 +65,10 @@ def main():
     master = master.merge(conteo_metro, on="CVE_AGEB", how="left")
     master["n_estaciones_metro"] = master["n_estaciones_metro"].fillna(0)
     master["afluencia_metro_total"] = master["afluencia_metro_total"].fillna(0)
+    
+    estaciones_out_path = PROCESSED / "estaciones_metro.parquet"
+    estaciones_con_afluencia.to_parquet(estaciones_out_path)
+    print(f"Listo: {estaciones_out_path}")
 
     print("Join espacial de oferta pública unificada...")
     conteo_publica = join_puntos_a_ageb(salud_publica, ageb, "n_salud_publica")
@@ -95,6 +100,7 @@ def main():
     master = master.merge(factibilidad, on="CVE_AGEB", how="left")
 
     master = compute_factibilidad_flag(master)
+    master = compute_tipo_zona(master)
 
     out_path = PROCESSED / "tabla_maestra.parquet"
     master.to_parquet(out_path)

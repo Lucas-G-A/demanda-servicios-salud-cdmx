@@ -74,3 +74,18 @@ def compute_factibilidad_flag(df: pd.DataFrame, min_predios: int = 20, percentil
         mask_muestra_suficiente & (df["pct_uso_equipamiento"] >= umbral)
     )
     return df
+
+
+def compute_tipo_zona(df: pd.DataFrame) -> pd.DataFrame:
+    """Clasifica cada AGEB por su uso de suelo dominante -- filtro real, no placeholder."""
+    df = df.copy()
+    n_otro = df["n_predios_total"] - df["n_equipamiento"] - df["n_mixto"]
+
+    condiciones = [
+        df["n_equipamiento"] >= df[["n_mixto"]].join(n_otro.rename("n_otro")).max(axis=1),
+        df["n_mixto"] >= n_otro,
+    ]
+    opciones = ["Equipamiento/Institucional", "Mixto/Comercial"]
+    df["tipo_zona"] = np.select(condiciones, opciones, default="Habitacional")
+    df.loc[df["n_predios_total"].isna() | (df["n_predios_total"] == 0), "tipo_zona"] = "Sin dato"
+    return df
