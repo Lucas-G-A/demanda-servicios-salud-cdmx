@@ -55,3 +55,18 @@ def join_candidatos_a_ageb(candidatos: gpd.GeoDataFrame, ageb: gpd.GeoDataFrame)
         print(f"  Predios candidatos sin AGEB asignado: {n_sin_ageb} de {len(candidatos_con_ageb)}")
 
     return candidatos_con_ageb
+
+def compute_factibilidad_uso_suelo(uso_suelo: gpd.GeoDataFrame, ageb: gpd.GeoDataFrame) -> pd.DataFrame:
+    """% de predios por AGEB en cada categoría de uso de suelo."""
+    unidos = gpd.sjoin(uso_suelo, ageb[["CVE_AGEB", "geometry"]], how="left", predicate="within")
+
+    resumen = unidos.groupby("CVE_AGEB").agg(
+        n_predios_total=("categoria_uso", "size"),
+        n_equipamiento=("categoria_uso", lambda s: (s == "equipamiento").sum()),
+        n_mixto=("categoria_uso", lambda s: (s == "mixto_compatible").sum()),
+    ).reset_index()
+
+    resumen["pct_uso_equipamiento"] = resumen["n_equipamiento"] / resumen["n_predios_total"]
+    resumen["pct_uso_mixto_compatible"] = resumen["n_mixto"] / resumen["n_predios_total"]
+
+    return resumen

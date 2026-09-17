@@ -1,4 +1,3 @@
-# src/pipeline/build_master.py
 import pandas as pd
 from src.pipeline.clean import (
     load_denue, load_ageb_geom, load_marginacion,
@@ -13,6 +12,9 @@ from src.pipeline.clean import load_estaciones_con_afluencia
 from src.pipeline.spatial_join import join_afluencia_a_ageb
 from src.pipeline.clean import load_indaabin_candidatos
 from src.pipeline.spatial_join import join_candidatos_a_ageb
+from src.pipeline.clean import load_uso_suelo
+from src.pipeline.spatial_join import compute_factibilidad_uso_suelo
+from src.model.trend import compute_factibilidad_flag
 
 AÑOS_DENUE = {
     2018: "denue_2018",
@@ -86,6 +88,13 @@ def main():
 
     agebs_con_candidato = set(candidatos_con_ageb["CVE_AGEB"].dropna())
     master["tiene_predio_candidato"] = master["CVE_AGEB"].isin(agebs_con_candidato)
+
+    print("Cargando uso de suelo...")
+    uso_suelo = load_uso_suelo()
+    factibilidad = compute_factibilidad_uso_suelo(uso_suelo, ageb)
+    master = master.merge(factibilidad, on="CVE_AGEB", how="left")
+
+    master = compute_factibilidad_flag(master)
 
     out_path = PROCESSED / "tabla_maestra.parquet"
     master.to_parquet(out_path)

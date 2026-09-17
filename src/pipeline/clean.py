@@ -131,3 +131,42 @@ def load_indaabin_candidatos() -> gpd.GeoDataFrame:
         crs=CRS_STANDARD,
     )
     return gdf
+
+def clasificar_uso_suelo(df: pd.DataFrame, col_uso: str = "uso_descripcion") -> pd.DataFrame:
+    """Clasifica cada predio en equipamiento / mixto_compatible / otro, tolerante a
+    mayúsculas, puntos finales, HTML residual y variantes de redacción."""
+    df = df.copy()
+    texto = df[col_uso].fillna("")
+
+    es_equipamiento = texto.str.contains("Equipamiento", case=False, na=False)
+    es_mixto = texto.str.contains(
+        r"Mixto|con Comercio|con Servicios|Servicios y Oficinas", case=False, na=False, regex=True
+    )
+
+    df["categoria_uso"] = "otro"
+    df.loc[es_mixto, "categoria_uso"] = "mixto_compatible"
+    df.loc[es_equipamiento, "categoria_uso"] = "equipamiento"  # equipamiento manda si aplica ambos
+
+    return df
+
+def load_uso_suelo() -> gpd.GeoDataFrame:
+    df = pd.read_csv(PATHS["uso_suelo"], encoding="utf-8-sig", low_memory=False)
+    df = clasificar_uso_suelo(df)
+
+    # descarta coordenadas no numéricas (marcadas como "S/COO" u otros placeholders de texto)
+    df["longitud"] = pd.to_numeric(df["longitud"], errors="coerce")
+    df["latitud"] = pd.to_numeric(df["latitud"], errors="coerce")
+
+    n_antes = len(df)
+    df = df.dropna(subset=["longitud", "latitud"])
+    n_despues = len(df)
+    if n_despues < n_antes:
+        print(f"  uso_suelo: descartados {n_antes - n_despues} de {n_antes} por coordenadas inválidas")
+
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["longitud"], df["latitud"]),
+        crs=CRS_STANDARD,
+    )
+    print(gdf["categoria_uso"].value_counts())
+    return gdf

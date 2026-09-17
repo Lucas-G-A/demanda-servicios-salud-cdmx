@@ -63,3 +63,14 @@ def compute_opportunity_score(
     )
 
     return df
+
+
+def compute_factibilidad_flag(df: pd.DataFrame, min_predios: int = 20, percentil: float = 0.75) -> pd.DataFrame:
+    df = df.copy()
+    mask_muestra_suficiente = df["n_predios_total"] >= min_predios
+    umbral = df.loc[mask_muestra_suficiente, "pct_uso_equipamiento"].quantile(percentil)
+
+    df["tiene_factibilidad_uso_suelo"] = (
+        mask_muestra_suficiente & (df["pct_uso_equipamiento"] >= umbral)
+    )
+    return df
