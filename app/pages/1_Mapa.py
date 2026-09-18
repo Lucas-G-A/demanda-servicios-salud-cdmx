@@ -152,7 +152,7 @@ if "ageb_a_centrar" in st.session_state:
     fila = master[master["CVE_AGEB"] == st.session_state["ageb_a_centrar"]]
     if not fila.empty:
         centroide = fila.geometry.centroid.iloc[0]
-        view_state = pdk.ViewState(latitude=centroide.y, longitude=centroide.x, zoom=15, pitch=0, bearing=0)
+        view_state = pdk.ViewState(latitude=centroide.y, longitude=centroide.x, zoom=14, pitch=0, bearing=0)
         st.info(f"Mostrando zona: {fila.iloc[0]['colonia']}")
         del st.session_state["ageb_a_centrar"]
     else:
