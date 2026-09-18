@@ -16,8 +16,6 @@ st.set_page_config(page_title="ZonaSalud CDMX", page_icon="🏥", layout="wide")
 inject_custom_css()
 render_logo()
 
-st.set_page_config(page_title="Mapa — Demanda de Salud CDMX", layout="wide")
-
 master = load_master()
 candidatos = load_candidatos()
 
@@ -26,7 +24,7 @@ st.caption("Servicios de salud · Ciudad de México · proyección a 3 años")
 
 # --- Agregación a hexágonos H3 res 8, vía centroide de cada AGEB ---
 @st.cache_data
-def agregar_a_hexagonos(_master, resolucion=8):
+def agregar_a_hexagonos(_master, resolucion=9):
     df = _master.copy()
     centroides = df.geometry.centroid
     df["h3_index"] = [
@@ -104,18 +102,6 @@ capa_hex = pdk.Layer(
     get_line_color=[253, 252, 250],
     line_width_min_pixels=0.5,
     pickable=True,
-)
-
-
-# --- Capa de hexágonos ---
-capa_hex = pdk.Layer(
-    "H3HexagonLayer",
-    hex_filtrados,
-    get_hexagon="h3_index",
-    get_fill_color="[255 * (1 - score_oportunidad), 255 * score_oportunidad, 80, 180]",
-    get_line_color=[255, 255, 255],
-    line_width_min_pixels=1,
-    pickable=True,
     extruded=False,
 )
 
@@ -162,7 +148,17 @@ if mostrar_metro:
     capas.append(capa_metro)
 
 
-view_state = pdk.ViewState(latitude=19.4326, longitude=-99.1332, zoom=10)
+if "ageb_a_centrar" in st.session_state:
+    fila = master[master["CVE_AGEB"] == st.session_state["ageb_a_centrar"]]
+    if not fila.empty:
+        centroide = fila.geometry.centroid.iloc[0]
+        view_state = pdk.ViewState(latitude=centroide.y, longitude=centroide.x, zoom=15, pitch=0, bearing=0)
+        st.info(f"Mostrando zona: {fila.iloc[0]['colonia']}")
+        del st.session_state["ageb_a_centrar"]
+    else:
+        view_state = pdk.ViewState(latitude=19.4326, longitude=-99.1332, zoom=10)
+else:
+    view_state = pdk.ViewState(latitude=19.4326, longitude=-99.1332, zoom=10)
 
 st.pydeck_chart(pdk.Deck(
     layers=capas,

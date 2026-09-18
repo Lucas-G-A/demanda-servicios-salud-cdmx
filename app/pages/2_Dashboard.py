@@ -55,7 +55,23 @@ top_zonas = (
         "tiene_factibilidad_uso_suelo": "Uso suelo compatible",
     })
 )
-st.dataframe(top_zonas, use_container_width=True, hide_index=True)
+
+seleccion = st.dataframe(
+    top_zonas,
+    use_container_width=True,
+    hide_index=True,
+    on_select="rerun",
+    selection_mode="single-row",
+)
+
+if seleccion["selection"]["rows"]:
+    fila_idx = seleccion["selection"]["rows"][0]
+    cve_ageb_seleccionada = top_zonas.iloc[fila_idx]["CVE_AGEB"]
+    colonia_seleccionada = top_zonas.iloc[fila_idx]["Colonia"]
+
+    if st.button(f"Ver en el mapa: {colonia_seleccionada}"):
+        st.session_state["ageb_a_centrar"] = cve_ageb_seleccionada
+        st.switch_page("pages/1_Mapa.py")
 
 st.divider()
 st.subheader("Conectividad y factibilidad")
