@@ -22,7 +22,6 @@ candidatos = load_candidatos()
 st.markdown("# Dónde crece la necesidad")
 st.caption("Servicios de salud · Ciudad de México · proyección a 3 años")
 
-# --- Agregación a hexágonos H3 res 8, vía centroide de cada AGEB ---
 @st.cache_data
 def agregar_a_hexagonos(_master, resolucion=9):
     df = _master.copy()
@@ -36,13 +35,14 @@ def agregar_a_hexagonos(_master, resolucion=9):
         confianza=("confianza", "mean"),
         n_agebs=("CVE_AGEB", "count"),
         factible=("tiene_factibilidad_uso_suelo", "any"),
+        colonia=("colonia", lambda s: s.mode().iloc[0] if not s.mode().empty else "Sin dato"),
+        tipo_zona=("tipo_zona", lambda s: s.mode().iloc[0] if not s.mode().empty else "Sin dato"),
     ).reset_index()
 
     return agregado
 
 hexagonos = agregar_a_hexagonos(master)
 
-# --- Sidebar de filtros ---
 with st.sidebar:
     st.subheader("Filtros")
 
@@ -54,8 +54,10 @@ with st.sidebar:
     )
     st.caption("Filtro informativo — no hay desagregación de edad disponible a nivel AGEB todavía.")
 
-    tipo_zona = st.selectbox("Tipo de zona", ["Todas"])
-    st.caption("Pendiente de implementar (requiere clasificación de zona adicional).")
+    tipo_zona_sel = st.selectbox(
+        "Tipo de zona",
+        ["Todas"] + sorted(master["tipo_zona"].dropna().unique().tolist())
+    )
 
     nivel_riesgo = st.slider(
         "Confianza mínima aceptable", 0.0, 1.0, 0.3, step=0.05
@@ -65,20 +67,21 @@ with st.sidebar:
 
     mostrar_candidatos = st.checkbox("Mostrar predios federales candidatos (INDAABIN)", value=True)
 
-# --- Aplicar filtros reales ---
 hex_filtrados = hexagonos[hexagonos["confianza"] >= nivel_riesgo]
 if solo_factibles:
     hex_filtrados = hex_filtrados[hex_filtrados["factible"]]
 
-# app/pages/1_Mapa.py — agrega esta función, y úsala antes de crear el pydeck.Layer
+if tipo_zona_sel != "Todas":
+    hex_filtrados = hex_filtrados[hex_filtrados["tipo_zona"] == tipo_zona_sel]
+
 
 def score_a_color(score: float) -> list[int]:
     """Interpola petróleo (bajo) -> crema (medio) -> dorado (alto)."""
     import numpy as np
     score = np.clip(score, 0, 1)
-    color_bajo = np.array([27, 75, 79])      # #1B4B4F
-    color_medio = np.array([242, 237, 228])  # #F2EDE4
-    color_alto = np.array([217, 142, 4])     # #D98E04
+    color_bajo = np.array([27, 75, 79])
+    color_medio = np.array([242, 237, 228])
+    color_alto = np.array([217, 142, 4])
 
     if score < 0.5:
         t = score / 0.5
@@ -86,13 +89,19 @@ def score_a_color(score: float) -> list[int]:
     else:
         t = (score - 0.5) / 0.5
         color = color_medio * (1 - t) + color_alto * t
-    return [int(c) for c in color] + [200]  # alpha
+    return [int(c) for c in color] + [200]
 
 hex_filtrados = hex_filtrados.copy()
-# normaliza el score dentro del rango actual filtrado, no 0-1 absoluto -- más contraste visual real
 score_min, score_max = hex_filtrados["score_oportunidad"].min(), hex_filtrados["score_oportunidad"].max()
 hex_filtrados["score_norm"] = (hex_filtrados["score_oportunidad"] - score_min) / (score_max - score_min)
 hex_filtrados["color"] = hex_filtrados["score_norm"].apply(score_a_color)
+
+# === NUEVO BLOQUE 1: tooltip propio de los hexágonos ===
+hex_filtrados["titulo"] = hex_filtrados["colonia"]
+hex_filtrados["linea1"] = hex_filtrados["score_oportunidad"].apply(lambda s: f"Score: {s:.2f}")
+hex_filtrados["linea2"] = "Tipo de zona: " + hex_filtrados["tipo_zona"].astype(str)
+hex_filtrados["linea3"] = "AGEBs agregadas: " + hex_filtrados["n_agebs"].astype(str)
+# === FIN NUEVO BLOQUE 1 ===
 
 capa_hex = pdk.Layer(
     "H3HexagonLayer",
@@ -114,6 +123,14 @@ if mostrar_candidatos:
         "direccion": candidatos["direccion"],
         "tramite": candidatos["tramite"],
     })
+
+    # === NUEVO BLOQUE 2: tooltip propio de los candidatos INDAABIN ===
+    candidatos_pd["titulo"] = candidatos_pd["direccion"]
+    candidatos_pd["linea1"] = "Trámite: " + candidatos_pd["tramite"].astype(str)
+    candidatos_pd["linea2"] = ""
+    candidatos_pd["linea3"] = ""
+    # === FIN NUEVO BLOQUE 2 ===
+
     capa_candidatos = pdk.Layer(
         "ScatterplotLayer",
         candidatos_pd,
@@ -137,12 +154,19 @@ if mostrar_metro:
     max_afluencia = estaciones_pd["afluencia"].max()
     estaciones_pd["radio"] = 40 + 120 * (estaciones_pd["afluencia"] / max_afluencia)
 
+    # === NUEVO BLOQUE 3: tooltip propio de las estaciones de Metro ===
+    estaciones_pd["titulo"] = estaciones_pd["nombre"]
+    estaciones_pd["linea1"] = estaciones_pd["afluencia"].apply(lambda a: f"Afluencia histórica: {a:,.0f}")
+    estaciones_pd["linea2"] = ""
+    estaciones_pd["linea3"] = ""
+    # === FIN NUEVO BLOQUE 3 ===
+
     capa_metro = pdk.Layer(
         "ScatterplotLayer",
         estaciones_pd,
         get_position=["lon", "lat"],
         get_radius="radio",
-        get_fill_color=[27, 75, 79, 160],  # petróleo, distinto del dorado de candidatos
+        get_fill_color=[27, 75, 79, 160],
         pickable=True,
     )
     capas.append(capa_metro)
@@ -160,11 +184,13 @@ if "ageb_a_centrar" in st.session_state:
 else:
     view_state = pdk.ViewState(latitude=19.4326, longitude=-99.1332, zoom=10)
 
+# === CAMBIO: tooltip final usa un solo campo unificado ===
 st.pydeck_chart(pdk.Deck(
     layers=capas,
     initial_view_state=view_state,
-    tooltip={"html": "<b>{nombre}</b><br/>Afluencia: {afluencia}<br/>Score: {score_oportunidad}<br/>{direccion}"},
+    tooltip={"html": "<b>{titulo}</b><br/>{linea1}<br/>{linea2}<br/>{linea3}"},
 ))
+# === FIN CAMBIO ===
 
 st.caption("🟤 Zonas por score de oportunidad · 🔵 Predios federales candidatos (INDAABIN) · ⬛ Estaciones de Metro (tamaño = afluencia)")
 

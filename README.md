@@ -14,38 +14,80 @@ AGEB (Área Geoestadística Básica), Marco Geoestadístico 2020 de INEGI. Se us
 
 | Fuente | Nivel geográfico | Año / corte | Notas |
 |---|---|---|---|
-| DENUE (INEGI) | Punto (lat/lon) | 2024, 2025, 2026 | Filtrado a SCIAN 62xxxx (salud y asistencia social). 3 cortes para tendencia y validación retrospectiva. |
+| DENUE (INEGI) | Punto (lat/lon) | 2018, 2020, 2022, 2024, 2025, 2026 | Filtrado a SCIAN 62xxxx (salud). 6 cortes para tendencia y validación retrospectiva. |
 | Marco Geoestadístico (INEGI) | AGEB urbana + rural | 2020 | Polígonos, capa `09a`/`09ar` de `conjunto_de_datos` |
 | Índice de marginación urbana (CONAPO) | AGEB | 2020 | ~2.9% de AGEBs sin valor — CONAPO excluye AGEBs con población insuficiente para calcular el índice de forma confiable |
-| Centros de Salud (Datos Abiertos CDMX / Secretaría de Salud) | Punto | ~2020 (verificar en diccionario) | Oferta pública |
+| Cartografía de marginación por colonia (CONAPO) | Colonia | 2020 | Usada para el cruce AGEB→colonia (nombre legible) |
+| Centros de Salud (Datos Abiertos CDMX / Secretaría de Salud) | Punto | ~2020 | Oferta pública |
 | Hospitales públicos/privados ZMVM | Punto, con clave CLUES | 2020 | Se cruza con CLUES para evitar doble conteo |
 | Establecimientos de Salud (CLUES, DGIS) | Punto, con clave CLUES | Julio 2026 | Fuente de verdad principal de oferta pública/privada registrada |
-| Equipamiento Básico de Salud (Datos Abiertos CDMX) | Colonia (agregado) | Población base 2010 | No es punto — se usa como variable de contexto, no se suma al conteo de establecimientos |
-| Censo Económico (INEGI) | Municipal | 2019, 2024 | Documentar que no baja a nivel AGEB |
-| Población con servicios de salud (Datos Abiertos CDMX) | Alcaldía | — | % población con/sin derechohabiencia por institución |
+| Equipamiento Básico de Salud (Datos Abiertos CDMX) | Colonia (agregado) | Población base 2010 | Variable de contexto, no se suma al conteo de establecimientos |
+| Uso de suelo (SEDUVI, Datos Abiertos CDMX) | Punto (~800,000 predios) | — | Clasificado en `equipamiento` / `mixto_compatible` / `otro`; base de la capa de factibilidad |
+| Afluencia de Metro + estaciones (STC/CDMX) | Punto (estación) | Histórico | Cruzado por estación+línea; variable de contexto/conectividad |
+| Inmuebles federales candidatos (INDAABIN) | Punto (8 predios, geocodificados a mano) | 2026 | "Enajenación a título gratuito" y "adjudicación directa" en CDMX |
+| Censo Económico (INEGI) | Municipal | 2019, 2024 | Cargado, no integrado al score (nivel demasiado agregado) |
+| ITER (INEGI) | Alcaldía (no AGEB) | 2020 | Explorado, **no integrado** — grano demasiado grueso para diferenciar AGEBs |
 
-**Diferencias temporales y geográficas documentadas**: DENUE (2024-2026, puntual) vs. marginación CONAPO (2020, AGEB) vs. equipamiento básico (base 2010, colonia) — hay hasta 6 años de desfase entre fuentes, y 3 niveles de agregación distintos. Se homogeneiza todo a nivel AGEB vía join espacial o por clave `CVEGEO`.
+**Diferencias temporales y geográficas documentadas**: DENUE (2018-2026, puntual) vs. marginación CONAPO (2020, AGEB) vs. equipamiento básico (base 2010, colonia) vs. uso de suelo (sin fecha de corte clara en el dato) — hasta 8 años de desfase entre fuentes, y 3 niveles de agregación distintos. Se homogeneiza todo a nivel AGEB vía join espacial o por clave `CVEGEO`.
+
+## Score de oportunidad
+
+`score_oportunidad = 0.65 × demanda_norm + 0.0 × tendencia_norm − 0.35 × saturacion_norm`
+
+- **Demanda**: `PSDSS` (% población sin servicios de salud, CONAPO), normalizado por rank-percentil.
+- **Saturación**: establecimientos de salud por cada 1,000 habitantes, normalizado por rank-percentil.
+- **Tendencia**: ponderada en 0 — ver "Validación retrospectiva" abajo, es una decisión basada en evidencia, no un componente pendiente.
+- **Confianza**: baja (0.3) si falta marginación en esa AGEB; si no, `0.5 + 0.5 × R²` de la tendencia (aunque no se use para el score, sí se usa como proxy de calidad de dato).
+
+## Capa de factibilidad (separada del score)
+
+No se mezcla con `score_oportunidad` a propósito — responde una pregunta distinta ("¿se puede construir aquí?" vs. "¿hace falta aquí?").
+
+- `tiene_factibilidad_uso_suelo`: AGEB en el percentil 75+ de `pct_uso_equipamiento`, exigiendo un mínimo de 20 predios registrados en la zona (para no dejar pasar AGEBs rurales con denominador chico).
+- `tipo_zona`: clasificación dominante por AGEB (`Equipamiento/Institucional`, `Mixto/Comercial`, `Habitacional`, `Sin dato`).
+- Predios candidatos INDAABIN mostrados como capa de puntos independiente, cruzados contra su AGEB para saber su score.
+
+## Validación retrospectiva — hallazgos
+
+Se probó tendencia lineal (extrapolación de conteos de DENUE) como componente predictivo, en 3 configuraciones distintas:
+
+| Configuración | Accuracy modelo | Accuracy baseline (persistencia) |
+|---|---|---|
+| AGEB, 3 cortes | ~40-57%* | 96.2% |
+| Colonia, 3 cortes | 57.5% | 57.6% (precision "sube": 7.4%) |
+| AGEB, 6 cortes, leave-last-out | 92.8% | 96.2% |
+
+*varía según banda de tolerancia para clasificar sube/baja/estable.
+
+**Conclusión**: en las 3 configuraciones, el modelo no supera un baseline ingenuo de "la zona no cambia" — ni con el doble de historia temporal. El problema es estructural: conteos de establecimientos por zona demasiado pequeños y discretos para que una tendencia temporal aporte señal confiable, no una limitación de cantidad de datos.
+
+**Decisión de modelo**: `w_tendencia = 0`. El horizonte de proyección (1/3/5 años) por eso no cambia el ranking de zonas — se asume que la necesidad insatisfecha actual persiste en el horizonte, no que la oferta crecerá de forma extrapolable. Lo que sí varía por horizonte es la confianza (proyectar más lejos es más incierto por definición).
 
 ## Limitaciones y supuestos conocidos
 
-- **Torres médicas**: algunos AGEBs concentran cientos de consultorios privados en una sola dirección real (ej. Tlacotalpan, Roma Norte — confirmado por dirección y número exterior idénticos, no es error de geocodificación). Esta oferta es de alcance regional/citywide, no de barrio — puede sesgar el score de saturación local si se trata igual que una clínica de vecindario. Marcado en la columna `n_en_misma_direccion`.
-- **Censo Económico** solo a nivel municipal — no aporta variables a nivel AGEB directamente.
-- **Equipamiento Básico de Salud** usa población base 2010, desfasada ~10-15 años del resto de las fuentes.
-- Posible doble conteo entre `hospitales`, `establecimientos_salud` (CLUES) y `centros_salud` — resuelto por merge exacto en CLUES donde existe, y dedup espacial (<100m) para `centros_salud` que no trae CLUES.
+- **Torres médicas**: algunos AGEBs concentran cientos de consultorios privados en una sola dirección real (ej. Tlacotalpan, Roma Norte — confirmado por dirección y número exterior idénticos, no es error de geocodificación). Oferta de alcance regional, no de barrio — columna `n_en_misma_direccion` disponible para tratarlo distinto si se necesita.
+- **Censo Económico e ITER**: solo a nivel municipal/alcaldía — no aportan variables a nivel AGEB. Explorados y descartados del score por esta razón, no por falta de calidad del dato en sí.
+- **Equipamiento Básico de Salud**: población base 2010, desfasada del resto de las fuentes.
+- **Predios candidatos INDAABIN**: 8 en total en CDMX, algunos geocodificados a mano por no traer coordenadas ni número exterior en la fuente (ej. "Anillo Periférico s/n") — aproximación al centroide de colonia en esos casos, no dirección exacta.
+- **Filtro "Población objetivo"**: informativo en el UI por ahora — no hay desagregación de edad confiable a nivel AGEB (ver ITER arriba).
+- Posible doble conteo entre `hospitales`, `establecimientos_salud` (CLUES) y `centros_salud` — resuelto por merge exacto en CLUES donde existe, y dedup espacial (<100m) para `centros_salud`.
 
 ## Estructura del repo
 ```
-dataton-salud/
+demanda_servicios_salud_cdmx/
 ├── data/
 │ ├── raw/ # no versionado
-│ └── processed/ # tabla_maestra.parquet
+│ └── processed/ # tabla_maestra.parquet, indaabin_candidatos.parquet, estaciones_metro.parquet
 ├── notebooks/
 │ └── 01_explore.ipynb
 ├── src/
-│ ├── pipeline/ # limpieza, dedup, join espacial, tabla maestra
-│ ├── model/ # tendencia + validación retrospectiva (pendiente)
-│ └── agent/ # herramientas del agente conversacional (pendiente)
-├── app/ # Streamlit — Mapa / Dashboard / Agente (pendiente)
+│ ├── pipeline/ # clean.py, spatial_join.py, dedupe.py, build_master.py
+│ ├── model/ # trend.py (score), validate.py (validación retrospectiva)
+│ └── agent/ # tools.py (herramientas del agente)
+├── app/
+│ ├── Home.py
+│ ├── pages/ # 1_Mapa.py, 2_Dashboard.py, 3_Agente.py
+│ └── components/ # data_loader.py, styling.py
 ├── pyproject.toml
 └── uv.lock
 ```
@@ -57,89 +99,27 @@ uv sync
 uv run python -m src.pipeline.build_master
 ```
 
-Genera `data/processed/tabla_maestra.parquet`: una fila por AGEB, con geometría, indicadores de marginación, y conteos de establecimientos de salud por corte temporal.
+## Cómo correr la app
+
+```bash
+uv run streamlit run app/Home.py
+```
+
+## Deploy
+
+Streamlit Community Cloud, lee `pyproject.toml` directo. API key de Anthropic en Secrets (`ANTHROPIC_API_KEY`), nunca en el repo (`.streamlit/secrets.toml` está en `.gitignore`).
 
 ## Estado actual
 
-- [x] Pipeline de datos: limpieza, dedup de fuentes de salud, join espacial DENUE/salud pública → AGEB
-- [x] Tabla maestra validada (0 duplicados de clave, geometrías válidas)
-- [ ] Score de oportunidad (tendencia + demanda − saturación)
-- [ ] Validación retrospectiva
-- [ ] App Streamlit (mapa hexagonal, dashboard, agente)
-- [ ] Deploy en Streamlit Community Cloud
-
-## Validación retrospectiva — hallazgos
-
-Se probó un modelo de tendencia lineal simple (extrapolación de 3 cortes de DENUE:
-2024, 2025, 2026) para predecir el número de establecimientos de salud por zona,
-tanto a nivel AGEB como a nivel colonia.
-
-**Resultado**: el modelo no superó un baseline ingenuo de persistencia ("la zona
-se mantiene igual que el último corte conocido"):
-
-| Nivel | Accuracy modelo | Accuracy baseline (persistencia) | Precision clase "sube" |
-|---|---|---|---|
-| AGEB | ~40-57%* | 96.2% | — |
-| Colonia | 57.5% | 57.6% | 7.4% |
-
-*varía según banda de tolerancia usada para clasificar sube/baja/estable.
-
-**Conclusión**: con solo 3 momentos históricos y conteos de establecimientos
-pequeños y discretos por zona (mayoría entre 0-3), la extrapolación lineal no
-tiene poder predictivo real — no es un error de implementación, se validó en
-dos granularidades geográficas distintas con el mismo resultado.
-
-**Decisión de modelo**: el score de oportunidad final pondera `tendencia = 0`.
-El componente de proyección se apoya en variables estáticas de necesidad
-insatisfecha (`PSDSS`, marginación CONAPO) en vez de en tendencia de oferta —
-se asume que la necesidad insatisfecha actual persiste o se agrava en el
-horizonte proyectado, no que la oferta crecerá de forma extrapolable.
-
-Esto se documenta como limitación reconocida, no como fallo oculto — es
-resultado directo de la validación retrospectiva que pide el reto.
-
-**Próximo paso evaluado**: probar con más cortes históricos de DENUE (5-6 en
-vez de 3) para ver si la tendencia a nivel colonia mejora con más densidad
-temporal, con límite de tiempo definido para no bloquear el resto del proyecto.
-
-## Fixes de datos durante el desarrollo
-
-- `CVE_AGEB` del shapefile de marco geoestadístico son solo 4 dígitos (no
-  únicos a nivel ciudad) — se usó `CVEGEO` (13 caracteres, ENT+MUN+LOC+AGEB)
-  como llave real para el merge con marginación CONAPO.
-- Normalización del score cambiada de min-max a rank-percentil — el min-max
-  se veía distorsionado por outliers extremos (torres médicas con 200+
-  establecimientos en una sola dirección), comprimiendo el resto de las
-  zonas a un rango angosto y sin poder de diferenciación.
-- Identificadas concentraciones legítimas de oferta médica en una sola
-  dirección (ej. Tlacotalpan, Roma Norte — 289 establecimientos, mismo
-  número exterior, confirmado que no es error de geocodificación).
-  Marcadas con `n_en_misma_direccion` para uso futuro, no filtradas.
-
-
-## Validación retrospectiva — hallazgos (actualizado con 6 cortes)
-
-Se probó tendencia lineal con 6 cortes de DENUE (2018, 2020, 2022, 2024, 2025, 2026)
-usando validación leave-last-out (se entrena con 2018-2025, se predice 2026, se
-compara contra el valor real).
-
-| Métrica | Valor |
-|---|---|
-| Correlación de Spearman | 0.995 |
-| Accuracy modelo (sube/baja/estable) | 92.8% |
-| Accuracy baseline (persistencia) | 96.2% |
-
-**Conclusión**: incluso con el doble de historia temporal (6 cortes vs. 3), la
-tendencia lineal sigue sin superar la predicción ingenua de "la zona no cambia".
-Se confirma en 3 configuraciones distintas (AGEB/3 cortes, colonia/3 cortes,
-AGEB/6 cortes) que el problema es estructural — conteos de establecimientos por
-zona demasiado pequeños y discretos para que una tendencia temporal aporte señal
-confiable — no una limitación de cantidad de datos históricos.
-
-**Decisión final de modelo**: `w_tendencia = 0`. El score de oportunidad se basa
-en demanda insatisfecha (marginación/PSDSS) y saturación de oferta actual,
-ambas señales estáticas pero validadas y con variación real entre zonas.
+- [x] Pipeline de datos: 8+ fuentes limpiadas, deduplicadas, unidas por AGEB
+- [x] Score de oportunidad (demanda + saturación, tendencia validada y descartada con evidencia)
+- [x] Capa de factibilidad (uso de suelo + INDAABIN)
+- [x] Validación retrospectiva documentada
+- [x] App Streamlit: Mapa (hexágonos H3 + Metro + candidatos), Dashboard, Agente (tool use)
+- [x] Deploy en Streamlit Community Cloud
+- [ ] Filtro de población objetivo por edad (bloqueado por falta de dato a nivel AGEB)
+- [ ] Pulido visual final (logo/tipografía en todas las páginas, leyenda de gradiente, sección de metodología en la app)
 
 ## Stack
 
-Python, `uv`, pandas, geopandas, Streamlit, pydeck (hexágonos H3), Anthropic API (agente).
+Python, `uv`, pandas, geopandas, Streamlit, pydeck (hexágonos H3), Anthropic API (agente, tool use).
