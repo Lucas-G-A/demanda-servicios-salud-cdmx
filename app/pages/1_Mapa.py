@@ -59,6 +59,10 @@ with st.sidebar:
         ["Todas"] + sorted(master["tipo_zona"].dropna().unique().tolist())
     )
 
+    factor_horizonte = {"1 año": 1.0, "3 años": 0.85, "5 años": 0.65}[horizonte]
+    hexagonos = hexagonos.copy()
+    hexagonos["confianza_ajustada"] = hexagonos["confianza"] * factor_horizonte
+
     nivel_riesgo = st.slider(
         "Confianza mínima aceptable", 0.0, 1.0, 0.3, step=0.05
     )
@@ -67,7 +71,7 @@ with st.sidebar:
 
     mostrar_candidatos = st.checkbox("Mostrar predios federales candidatos (INDAABIN)", value=True)
 
-hex_filtrados = hexagonos[hexagonos["confianza"] >= nivel_riesgo]
+hex_filtrados = hexagonos[hexagonos["confianza_ajustada"] >= nivel_riesgo]
 if solo_factibles:
     hex_filtrados = hex_filtrados[hex_filtrados["factible"]]
 
@@ -190,7 +194,13 @@ st.pydeck_chart(pdk.Deck(
     initial_view_state=view_state,
     tooltip={"html": "<b>{titulo}</b><br/>{linea1}<br/>{linea2}<br/>{linea3}"},
 ))
-# === FIN CAMBIO ===
+
+st.markdown("""
+<div style="background: linear-gradient(to right, #1B4B4F, #F2EDE4, #D98E04); height:12px; border-radius:4px; margin-top:8px;"></div>
+<div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#5A5A5A;">
+    <span>Baja oportunidad</span><span>Alta oportunidad</span>
+</div>
+""", unsafe_allow_html=True)
 
 st.caption("🟤 Zonas por score de oportunidad · 🔵 Predios federales candidatos (INDAABIN) · ⬛ Estaciones de Metro (tamaño = afluencia)")
 
