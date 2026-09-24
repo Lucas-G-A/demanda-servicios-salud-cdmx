@@ -22,18 +22,53 @@ candidatos = load_candidatos()
 st.markdown("# Dónde crece la necesidad")
 st.caption("Servicios de salud · Ciudad de México · proyección a 3 años")
 
+# app/pages/1_Mapa.py — reemplaza la función agregar_a_hexagonos() completa
+
+def _coords_a_latlng(coords):
+    # shapely da (x, y) = (lon, lat); h3 espera (lat, lon) -- hay que invertir
+    return [(lat, lon) for lon, lat in coords]
+
+
+def _ageb_a_celdas_h3(geom, resolucion):
+    celdas = set()
+    poligonos = geom.geoms if geom.geom_type == "MultiPolygon" else [geom]
+    for poly in poligonos:
+        exterior = _coords_a_latlng(poly.exterior.coords)
+        huecos = [_coords_a_latlng(interior.coords) for interior in poly.interiors]
+        try:
+            h3poly = h3.LatLngPoly(exterior, *huecos)
+            celdas.update(h3.polygon_to_cells(h3poly, resolucion))
+        except Exception:
+            # si el polígono es demasiado pequeño/raro para cubrir ninguna celda completa,
+            # al menos no perder la AGEB -- usa su centroide como respaldo
+            c = poly.centroid
+            celdas.add(h3.latlng_to_cell(c.y, c.x, resolucion))
+    return list(celdas)
+
+
 @st.cache_data
 def agregar_a_hexagonos(_master, resolucion=9):
     df = _master.copy()
-    centroides = df.geometry.centroid
-    df["h3_index"] = [
-        h3.latlng_to_cell(pt.y, pt.x, resolucion) for pt in centroides
-    ]
 
-    agregado = df.groupby("h3_index").agg(
+    registros = []
+    for _, row in df.iterrows():
+        for celda in _ageb_a_celdas_h3(row.geometry, resolucion):
+            registros.append({
+                "h3_index": celda,
+                "CVE_AGEB": row["CVE_AGEB"],
+                "score_oportunidad": row["score_oportunidad"],
+                "confianza": row["confianza"],
+                "colonia": row["colonia"],
+                "tipo_zona": row["tipo_zona"],
+                "tiene_factibilidad_uso_suelo": row["tiene_factibilidad_uso_suelo"],
+            })
+
+    expandido = pd.DataFrame(registros)
+
+    agregado = expandido.groupby("h3_index").agg(
         score_oportunidad=("score_oportunidad", "mean"),
         confianza=("confianza", "mean"),
-        n_agebs=("CVE_AGEB", "count"),
+        n_agebs=("CVE_AGEB", "nunique"),
         factible=("tiene_factibilidad_uso_suelo", "any"),
         colonia=("colonia", lambda s: s.mode().iloc[0] if not s.mode().empty else "Sin dato"),
         tipo_zona=("tipo_zona", lambda s: s.mode().iloc[0] if not s.mode().empty else "Sin dato"),
