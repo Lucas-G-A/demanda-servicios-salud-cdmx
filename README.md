@@ -1,5 +1,9 @@
 # Predicción de demanda urbana — Servicios de salud CDMX
 
+**App en vivo:** [demanda-servicios-salud-cdmx.streamlit.app](https://demanda-servicios-salud-cdmx.streamlit.app/)
+
+Proyecto para el Datatón 2026 (ITAM). Predicción de zonas de la Ciudad de México donde aumentará la demanda de servicios de salud en los próximos años, con mapa interactivo, dashboard y agente conversacional.
+
 Proyecto para el Datatón 2026 (ITAM). Predicción de zonas de la Ciudad de México donde aumentará la demanda de servicios de salud en los próximos años, con mapa interactivo, dashboard y agente conversacional.
 
 ## Categoría
@@ -47,6 +51,10 @@ No se mezcla con `score_oportunidad` a propósito — responde una pregunta dist
 - `tipo_zona`: clasificación dominante por AGEB (`Equipamiento/Institucional`, `Mixto/Comercial`, `Habitacional`, `Sin dato`).
 - Predios candidatos INDAABIN mostrados como capa de puntos independiente, cruzados contra su AGEB para saber su score.
 
+## Visualización — agregación a hexágonos H3
+
+El mapa agrega las 2,452 AGEB a hexágonos H3 (resolución 9, ~175m) para la vista de calor. Cada AGEB se asigna a **todos los hexágonos que su polígono real cubre** (`h3.polygon_to_cells` sobre la geometría completa, con manejo de multipolígonos y huecos interiores) — no solo al hexágono de su centroide. Esto evita huecos visuales en AGEBs grandes o irregulares (común en el Centro Histórico y zonas institucionales), donde un solo punto central dejaba sin pintar el resto del área que la AGEB realmente ocupa. Como respaldo, si un polígono es demasiado pequeño o irregular para que `polygon_to_cells` le asigne una celda completa, se usa su centroide para no perder esa AGEB del mapa.
+
 ## Validación retrospectiva — hallazgos
 
 Se probó tendencia lineal (extrapolación de conteos de DENUE) como componente predictivo, en 3 configuraciones distintas:
@@ -92,6 +100,7 @@ demanda_servicios_salud_cdmx/
 └── uv.lock
 ```
 
+
 ## Cómo correr el pipeline
 
 ```bash
@@ -109,16 +118,23 @@ uv run streamlit run app/Home.py
 
 Streamlit Community Cloud, lee `pyproject.toml` directo. API key de Anthropic en Secrets (`ANTHROPIC_API_KEY`), nunca en el repo (`.streamlit/secrets.toml` está en `.gitignore`).
 
+## Trabajo futuro (fuera de alcance por tiempo, no por descuido)
+
+- **Inmuebles24 / portales inmobiliarios**: señal de mercado (precio, disponibilidad real) que complementaría la factibilidad, hoy basada solo en uso de suelo normativo.
+- **Licencias de construcción**: único proxy honesto de crecimiento futuro identificado y no integrado — resolvería el componente de tendencia sin depender de extrapolar oferta existente.
+- **RESAGEBURB (INEGI)**: activaría de verdad el filtro de población objetivo (adultos mayores / primera infancia) a nivel AGEB — ITER solo llega a nivel alcaldía.
+- **Movilidad completa**: Metrobús (requiere shapefile de líneas, señal más gruesa que Metro) y RTP (sin paradas geolocalizadas públicas) quedaron fuera por costo/beneficio.
+
 ## Estado actual
 
-- [x] Pipeline de datos: 8+ fuentes limpiadas, deduplicadas, unidas por AGEB
+- [x] Pipeline de datos: 9 fuentes limpiadas, deduplicadas, unidas por AGEB
 - [x] Score de oportunidad (demanda + saturación, tendencia validada y descartada con evidencia)
 - [x] Capa de factibilidad (uso de suelo + INDAABIN)
 - [x] Validación retrospectiva documentada
-- [x] App Streamlit: Mapa (hexágonos H3 + Metro + candidatos), Dashboard, Agente (tool use)
+- [x] App Streamlit: Home, Mapa (hexágonos H3 por cobertura real de polígono, Metro, candidatos INDAABIN), Dashboard, Agente (tool use)
+- [x] Estilos y logo consistentes en las 4 páginas
 - [x] Deploy en Streamlit Community Cloud
 - [ ] Filtro de población objetivo por edad (bloqueado por falta de dato a nivel AGEB)
-- [ ] Pulido visual final (logo/tipografía en todas las páginas, leyenda de gradiente, sección de metodología en la app)
 
 ## Stack
 
